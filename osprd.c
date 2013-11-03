@@ -121,8 +121,27 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 	// 'req->buffer' members, and the rq_data_dir() function.
 
 	// Your code here.
-	eprintk("Should process request...\n");
+	//eprintk("Should process request...\n");
+	int sectors_to_go = req->current_nr_sectors + 1;
+	int sectors_written = 0;
+	char *buffer = req->buffer;
+        uint8_t *data = d->data;
 
+	if ( rq_data_dir(req) == READ) {
+		while (sectors_to_go > 0) {
+			buffer[(sectors_written) * SECTOR_SIZE] = data[(req->sector + sectors_written) * SECTOR_SIZE];
+			sectors_written++, sectors_to_go--;
+		}
+	} 
+	else if ( rq_data_dir(req) == WRITE) {
+		while (req->current_nr_sectors > 0) {
+			data[(req->sector + sectors_written) * SECTOR_SIZE] =  buffer[(sectors_written) * SECTOR_SIZE];
+			sectors_written++, sectors_to_go--;
+		}
+        }
+        else {
+		eprintk("Error finding command type.\n");
+        }
 	end_request(req, 1);
 }
 
