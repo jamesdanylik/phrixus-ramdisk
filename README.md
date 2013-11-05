@@ -13,9 +13,10 @@ Project ToDo
 ------------
 
 *	Exercise 1: osprd_process_request: perform the read or write by copying
-                    data.
+                    data. (IN PROGRESS: Wendy)
 *	Exercise 2: osprd_close_last: close a ramdisk and release all locks, 
                                       waking blocked processes as apporpriate.
+                                      (IN PROGRESS: James)
 *	Exercise 3: osprd_ioctl: performs a ioctl on the named file.  Heavy 
                     lifiting function.
 
