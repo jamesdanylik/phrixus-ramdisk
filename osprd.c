@@ -307,7 +307,8 @@ static void osprd_setup(osprd_info_t *d)
 	osp_spin_lock_init(&d->mutex);
 	d->ticket_head = d->ticket_tail = 0;
 	/* Add code here if you add fields to osprd_info_t. */
-	for ( int i = 0; i<OSPRD_MAX_READLOCKS; i++) {
+	int i = -1;
+	while (i++, i<OSPRD_MAX_READLOCKS) {
 		d->read_pids[i] = -1;
 	}
 	d->write_pid= -1;
