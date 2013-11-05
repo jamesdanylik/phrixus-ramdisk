@@ -17,6 +17,9 @@
 #include "spinlock.h"
 #include "osprd.h"
 
+
+
+
 /* The size of an OSPRD sector. */
 #define SECTOR_SIZE	512
 
@@ -111,7 +114,17 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 		end_request(req, 0);
 		return;
 	}
-
+    if (rq_data_dir(req) == READ) {
+        memcpy (req->buffer, d->data + (req->sector * SECTOR_SIZE), req->current_nr_sectors );
+    }
+    
+    else if (rq_data_dir(req) == WRITE) {
+        memcpy (d->data + (req->sector * SECTOR_SIZE), req->buffer, req->current_nr_sectors );
+    }
+    
+    else 
+        eprintk ("process request not recognized");
+        
 	// EXERCISE: Perform the read or write request by copying data between
 	// our data array and the request's buffer.
 	// Hint: The 'struct request' argument tells you what kind of request
@@ -119,29 +132,13 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 	// Read about 'struct request' in <linux/blkdev.h>.
 	// Consider the 'req->sector', 'req->current_nr_sectors', and
 	// 'req->buffer' members, and the rq_data_dir() function.
+   
+    /* current_nr_sectors : no. of sectors left to submit in the current segment */
+    //#define rq_data_dir(rq) ((rq)->flags & 1)
 
 	// Your code here.
-	//eprintk("Should process request...\n");
-	int sectors_to_go = req->current_nr_sectors + 1;
-	int sectors_written = 0;
-	char *buffer = req->buffer;
-        uint8_t *data = d->data;
+	eprintk("Should process request...\n");
 
-	if ( rq_data_dir(req) == READ) {
-		while (sectors_to_go > 0) {
-			buffer[(sectors_written) * SECTOR_SIZE] = data[(req->sector + sectors_written) * SECTOR_SIZE];
-			sectors_written++, sectors_to_go--;
-		}
-	} 
-	else if ( rq_data_dir(req) == WRITE) {
-		while (req->current_nr_sectors > 0) {
-			data[(req->sector + sectors_written) * SECTOR_SIZE] =  buffer[(sectors_written) * SECTOR_SIZE];
-			sectors_written++, sectors_to_go--;
-		}
-        }
-        else {
-		eprintk("Error finding command type.\n");
-        }
 	end_request(req, 1);
 }
 
