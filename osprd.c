@@ -309,9 +309,9 @@ static void osprd_setup(osprd_info_t *d)
 	/* Add code here if you add fields to osprd_info_t. */
 	int i = -1;
 	while (i++, i<OSPRD_MAX_READLOCKS) {
-		d->read_pids[i] = -1;
+		d->readlock_pids[i] = -1;
 	}
-	d->write_pid= -1;
+	d->writelock_pid= -1;
 	d->num_readlocks = 0;
 	d->num_writelocks = 0;
 }
