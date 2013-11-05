@@ -34,7 +34,7 @@
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("CS 111 RAM Disk");
 // EXERCISE: Pass your names into the kernel as the module's authors.
-MODULE_AUTHOR("Skeletor");
+MODULE_AUTHOR("James Danylik & Zhaoying Yao");
 
 #define OSPRD_MAJOR	222
 
@@ -170,8 +170,18 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// a lock, release the lock.  Also wake up blocked processes
 		// as appropriate.
 
-		// Your code here.
-
+		// If file2osprd has retuned NULL, then our filp argument
+		// wasn't a valid ramdisk.  Error.
+		if (d == NULL) {
+			return -1;
+		}
+		// Else, AND the flags field of the this disk with the
+		// F_OSPRD_LOCKED constant to check whether or not it's
+		// been locked.  
+		else if (filp->f_flags & F_OSPRD_LOCKED) {
+			// Need to deal with unlocking everything?  No way
+			// to tell whether write/read lock?
+		}
 		// This line avoids compiler warnings; you may remove it.
 		(void) filp_writable, (void) d;
 
