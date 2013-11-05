@@ -41,6 +41,11 @@ MODULE_AUTHOR("James Danylik & Zhaoying Yao");
 
 #define OSPRD_MAJOR	222
 
+#define OSPRD_MAX_READLOCKS	500
+// Since we're going to track the pids of readers and writers to avoid
+// deadlocks, this will determine the max ammount of readlock holders
+// a disk can have.
+
 /* This module parameter controls how big the disk will be.
  * You can specify module parameters when you load the module,
  * as an argument to insmod: "insmod osprd.ko nsectors=4096" */
@@ -67,6 +72,17 @@ typedef struct osprd_info {
 
 	/* HINT: You may want to add additional fields to help
 	         in detecting deadlock. */
+
+	pid_t readlock_pids[OSPRD_MAX_READLOCKS];	// An array of processes
+							// currently holding readlocks
+
+	pid_t writelock_pid;				// The pid with the
+							// write lock
+
+	unsigned num_readlocks;				// The number of readers
+
+
+	unsigned num_writelocks;			// the number of writers.
 
 	// The following elements are used internally; you don't need
 	// to understand them.
@@ -291,6 +307,12 @@ static void osprd_setup(osprd_info_t *d)
 	osp_spin_lock_init(&d->mutex);
 	d->ticket_head = d->ticket_tail = 0;
 	/* Add code here if you add fields to osprd_info_t. */
+	for ( int i = 0; i<OSPRD_MAX_READLOCKS; i++) {
+		d->read_pids[i] = -1;
+	}
+	d->write_pid= -1;
+	d->num_readlocks = 0;
+	d->num_writelocks = 0;
 }
 
 
