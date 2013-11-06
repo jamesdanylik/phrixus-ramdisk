@@ -214,6 +214,12 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 	// Set 'r' to the ioctl's return value: 0 on success, negative on error
 
 	if (cmd == OSPRDIOCACQUIRE) {
+        
+        //You should set a local
+		// variable to 'd->ticket_head' and increment 'd->ticket_head'.
+        unsigned local_ticket = d->ticket_head;
+        d->ticket_head++;
+        
 
 		// EXERCISE: Lock the ramdisk.
 		//
@@ -224,20 +230,59 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         
 		// If *filp is open for writing (filp_writable), then attempt
 		// to write-lock the ramdisk
-        	if (filp_writable) {
-            		osp_spin_lock(&d->mutex);
+        	
+               if (filp_writable) {
+                
+                //block when not ready
+                while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail || d-> num_readlocks !=0 ) {
+                    
+                    
+                    int wait = wait_event_interruptible(d->blockq, 1);
+                    if (wait == -ERESTARTSYS)
+                        return -ERESTARTSYS;
+                    
+                    osp_spin_unlock(&d->mutex);// not sure, but there must be a unlock before scheule 
+                    
+                    schedule();
+                    
+
+                    
+                }
+            		osp_spin_lock(&d->mutex);// not sure
             		d->writelock_pid = current->pid;
             		d->num_writelocks++;
+                   filp->f_flags|= F_OSPRD_LOCKED;
         	}
         
         	// otherwise attempt to read-lock
 		// the ramdisk.
         	else {
-            		osp_spin_lock(&d->mutex);
+                
+                while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail) {
+                    
+                    
+                    int wait = wait_event_interruptible(d->blockq, 1);
+                    if (wait == -ERESTARTSYS)
+                        return -ERESTARTSYS;
+                    
+                    osp_spin_unlock(&d->mutex);//not sure
+                    
+                    schedule();
+                    
+                    
+                    
+                }
+
+                
+                osp_spin_lock(&d->mutex);
             		
 			//add current pid to readlock_pids
             		d->readlock_pids[d->num_readlocks++]= current->pid;
+                    filp->f_flags|= F_OSPRD_LOCKED;
+                    
+                                        
         	}
+        osp_spin_unlock (&d->mutex);
             
             
             
@@ -265,8 +310,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// 'd->ticket_head' and 'd->ticket_tail' should help you
 		// service lock requests in order.  These implement a ticket
 		// order: 'ticket_tail' is the next ticket, and 'ticket_head'
-		// is the ticket currently being served.  You should set a local
-		// variable to 'd->ticket_head' and increment 'd->ticket_head'.
+		// is the ticket currently being served. 
 		// Then, block at least until 'd->ticket_tail == local_ticket'.
 		// (Some of these operations are in a critical section and must
 		// be protected by a spinlock; which ones?)
