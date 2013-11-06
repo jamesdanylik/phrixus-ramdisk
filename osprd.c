@@ -236,31 +236,22 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// the ramdisk.
         
         
-        // If *filp is open for writing (filp_writable), then attempt
+		// If *filp is open for writing (filp_writable), then attempt
 		// to write-lock the ramdisk
-        if (filp_writable) {
-            osp_spin_lock(&d->mutex);
-            d->writelock_pid = current->pid;
-            d->num_writelocks++;
-        }
+        	if (filp_writable) {
+            		osp_spin_lock(&d->mutex);
+            		d->writelock_pid = current->pid;
+            		d->num_writelocks++;
+        	}
         
-        // otherwise attempt to read-lock
+        	// otherwise attempt to read-lock
 		// the ramdisk.
-
-        else {
-            
-            osp_spin_lock(&d->mutex);
-            
-            
-            //add current pid to readlock_pids
-            
-            readlock_pids[num_readlocks]= current->pid;
-            
-            d->num_readlocks++;
-            
-            
-        
-        }
+        	else {
+            		osp_spin_lock(&d->mutex);
+            		
+			//add current pid to readlock_pids
+            		readlock_pids[d->num_readlocks++]= current->pid;
+        	}
             
             
             
