@@ -4,7 +4,7 @@
 #include <linux/moduleparam.h>
 #include <linux/init.h>
 
-#include <linux/sched.h>
+#include <linux/sched.h>// use current->pid
 #include <linux/kernel.h>  /* printk() */
 #include <linux/errno.h>   /* error codes */
 #include <linux/types.h>   /* size_t */
@@ -37,7 +37,7 @@
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("CS 111 RAM Disk");
 // EXERCISE: Pass your names into the kernel as the module's authors.
-MODULE_AUTHOR("James Danylik & Zhaoying Yao");
+MODULE_AUTHOR("Skeletor");
 
 #define OSPRD_MAJOR	222
 
@@ -67,6 +67,17 @@ typedef struct osprd_info {
 
 	/* HINT: You may want to add additional fields to help
 	         in detecting deadlock. */
+    
+    pid_t readlock_pids[OSPRD_MAX_READLOCKS];        // An array of processes
+    // currently holding readlocks
+    
+    pid_t writelock_pid;                                // The pid with the
+    // write lock
+    
+    unsigned num_readlocks;                                // The number of readers
+    
+    
+    unsigned num_writelocks;                        // the number of writers.
 
 	// The following elements are used internally; you don't need
 	// to understand them.
@@ -167,18 +178,8 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// a lock, release the lock.  Also wake up blocked processes
 		// as appropriate.
 
-		// If file2osprd has retuned NULL, then our filp argument
-		// wasn't a valid ramdisk.  Error.
-		if (d == NULL) {
-			return -1;
-		}
-		// Else, AND the flags field of the this disk with the
-		// F_OSPRD_LOCKED constant to check whether or not it's
-		// been locked.  
-		else if (filp->f_flags & F_OSPRD_LOCKED) {
-			// Need to deal with unlocking everything?  No way
-			// to tell whether write/read lock?
-		}
+		// Your code here.
+
 		// This line avoids compiler warnings; you may remove it.
 		(void) filp_writable, (void) d;
 
@@ -215,8 +216,38 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// EXERCISE: Lock the ramdisk.
 		//
 		// If *filp is open for writing (filp_writable), then attempt
-		// to write-lock the ramdisk; otherwise attempt to read-lock
+		// to write-lock the ramdiskotherwise attempt to read-lock
 		// the ramdisk.
+        
+        
+        // If *filp is open for writing (filp_writable), then attempt
+		// to write-lock the ramdisk
+        if (filp_writable) {
+            osp_spin_lock(&d->mutex);
+            d->writelock_pid = current->pid;
+            d->num_writelocks++;
+        }
+        
+        // otherwise attempt to read-lock
+		// the ramdisk.
+
+        else {
+            
+            osp_spin_lock(&d->mutex);
+            
+            
+            //add current pid to readlock_pids
+            
+            readlock_pids[num_readlocks]= current->pid;
+            
+            d->num_readlocks++;
+            
+            
+        
+        }
+            
+            
+            
 		//
                 // This lock request must block using 'd->blockq' until:
 		// 1) no other process holds a write lock;
