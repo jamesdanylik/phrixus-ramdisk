@@ -73,27 +73,16 @@ typedef struct osprd_info {
 	/* HINT: You may want to add additional fields to help
 	         in detecting deadlock. */
     
-    pid_t readlock_pids[OSPRD_MAX_READLOCKS];        // An array of processes
-    // currently holding readlocks
+	pid_t readlock_pids[OSPRD_MAX_READLOCKS];       // An array of processes
+    							// currently holding readlocks
     
-    pid_t writelock_pid;                                // The pid with the
-    // write lock
-    
-    unsigned num_readlocks;                                // The number of readers
-    
-    
-    unsigned num_writelocks;                        // the number of writers.
-
-	pid_t readlock_pids[OSPRD_MAX_READLOCKS];	// An array of processes
-							// currently holding readlocks
-
-	pid_t writelock_pid;				// The pid with the
+    	pid_t writelock_pid;                            // The pid with the
 							// write lock
-
-	unsigned num_readlocks;				// The number of readers
-
-
-	unsigned num_writelocks;			// the number of writers.
+    
+	unsigned num_readlocks;                         // The number of readers
+   
+    
+	unsigned num_writelocks;                        // the number of writers.
 
 	// The following elements are used internally; you don't need
 	// to understand them.
@@ -137,34 +126,31 @@ static void for_each_open_file(struct task_struct *task,
  */
 static void osprd_process_request(osprd_info_t *d, struct request *req)
 {
+        // EXERCISE: Perform the read or write request by copying data between
+        // our data array and the request's buffer.
+        // Hint: The 'struct request' argument tells you what kind of request
+        // this is, and which sectors are being read or written.
+        // Read about 'struct request' in <linux/blkdev.h>.
+        // Consider the 'req->sector', 'req->current_nr_sectors', and
+        // 'req->buffer' members, and the rq_data_dir() function.
+
 	if (!blk_fs_request(req)) {
 		end_request(req, 0);
 		return;
 	}
-    if (rq_data_dir(req) == READ) {
-        memcpy (req->buffer, d->data + (req->sector * SECTOR_SIZE), req->current_nr_sectors );
-    }
-    
-    else if (rq_data_dir(req) == WRITE) {
-        memcpy (d->data + (req->sector * SECTOR_SIZE), req->buffer, req->current_nr_sectors );
-    }
-    
-    else 
-        eprintk ("process request not recognized");
-        
-	// EXERCISE: Perform the read or write request by copying data between
-	// our data array and the request's buffer.
-	// Hint: The 'struct request' argument tells you what kind of request
-	// this is, and which sectors are being read or written.
-	// Read about 'struct request' in <linux/blkdev.h>.
-	// Consider the 'req->sector', 'req->current_nr_sectors', and
-	// 'req->buffer' members, and the rq_data_dir() function.
-   
-    /* current_nr_sectors : no. of sectors left to submit in the current segment */
-    //#define rq_data_dir(rq) ((rq)->flags & 1)
 
-	// Your code here.
-	eprintk("Should process request...\n");
+	if (rq_data_dir(req) == READ) {
+        	memcpy (req->buffer, d->data + (req->sector * SECTOR_SIZE), req->current_nr_sectors );
+	}
+    
+	else if (rq_data_dir(req) == WRITE) {
+        	memcpy (d->data + (req->sector * SECTOR_SIZE), req->buffer, req->current_nr_sectors );
+	}
+    
+	else 
+        	eprintk ("process request not recognized");
+        
+	//eprintk("Should process request...\n");
 
 	end_request(req, 1);
 }
@@ -250,7 +236,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
             		osp_spin_lock(&d->mutex);
             		
 			//add current pid to readlock_pids
-            		readlock_pids[d->num_readlocks++]= current->pid;
+            		d->readlock_pids[d->num_readlocks++]= current->pid;
         	}
             
             
