@@ -286,7 +286,18 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// be protected by a spinlock; which ones?)
 
 		// Your code here (instead of the next two lines).
-		eprintk("Attempting to acquire\n");
+
+		// BEGINNING OF OUR COMMENTS
+
+		// If filp_Writable, then we should attempt to get a writelock
+		if (filp_writable) {
+
+		}
+		// Else, we should attempt to get a read lock.
+		else {
+
+		}
+		//eprintk("Attempting to acquire\n");
 		r = -ENOTTY;
 
 	} else if (cmd == OSPRDIOCTRYACQUIRE) {
@@ -299,7 +310,14 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// Otherwise, if we can grant the lock request, return 0.
 
 		// Your code here (instead of the next two lines).
-		eprintk("Attempting to try acquire\n");
+
+		if (filp_writable) {
+
+		}
+		else {
+
+		}
+		//eprintk("Attempting to try acquire\n");
 		r = -ENOTTY;
 
 	} else if (cmd == OSPRDIOCRELEASE) {
