@@ -326,15 +326,23 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 	} else if (cmd == OSPRDIOCRELEASE) {
 
 		// EXERCISE: Unlock the ramdisk.
-		//
-		// If the file hasn't locked the ramdisk, return -EINVAL.
-		// Otherwise, clear the lock from filp->f_flags, wake up
-		// the wait queue, perform any additional accounting steps
-		// you need, and return 0.
 
-		// Your code here (instead of the next line).
 		r = -ENOTTY;
 
+		// If the file hasn't locked the ramdisk, return -EINVAL.
+		if ( !(filp->f_flags & F_OSPRD_LOCKED) ) {
+			r = -EINVAL;
+		}
+
+                // Otherwise, clear the lock from filp->f_flags, wake up
+                // the wait queue, perform any additional accounting steps
+                // you need, and return 0.
+		else {
+			filp->f_flags ^= F_OSPRD_LOCKED;
+			wake_up_all(&d->blockq);
+			r = 0;
+		}
+		
 	} else
 		r = -ENOTTY; /* unknown command */
 	return r;
