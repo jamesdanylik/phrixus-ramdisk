@@ -232,10 +232,10 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 	if (cmd == OSPRDIOCACQUIRE) {
         
-        //You should set a local
+        	//You should set a local
 		// variable to 'd->ticket_head' and increment 'd->ticket_head'.
-        unsigned local_ticket = d->ticket_head;
-        d->ticket_head++;
+        	unsigned local_ticket = d->ticket_head;
+        	d->ticket_head++;
         
 
 		// EXERCISE: Lock the ramdisk.
@@ -248,58 +248,45 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// If *filp is open for writing (filp_writable), then attempt
 		// to write-lock the ramdisk
         	
-               if (filp_writable) {
+		r = 0; //unless something goes wrong...
+
+		if (filp_writable) {
                 
                 //block when not ready
-                while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail || d-> num_readlocks !=0 ) {
-                    
-                    
-                    int wait = wait_event_interruptible(d->blockq, 1);
-                    if (wait == -ERESTARTSYS)
-                        return -ERESTARTSYS;
-                    
-                    osp_spin_unlock(&d->mutex);// not sure, but there must be a unlock before scheule 
-                    
-                    schedule();
-                    
-
-                    
-                }
-            		osp_spin_lock(&d->mutex);// not sure
+                	while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail || d-> num_readlocks !=0 ) {    
+                    		int wait = wait_event_interruptible(d->blockq, 1);
+				osp_spin_unlock(&d->mutex);// not sure, but there must be a unlock before scheule 
+                    		if (wait == -ERESTARTSYS)
+                        		return -ERESTARTSYS;
+                    		schedule();
+				osp_spin_lock(&d->mutex); // and the we must relock to loop?
+                	}
+            		//osp_spin_lock(&d->mutex);// not sure
             		d->writelock_pid = current->pid;
             		d->num_writelocks++;
-                   filp->f_flags|= F_OSPRD_LOCKED;
+                	filp->f_flags|= F_OSPRD_LOCKED;
         	}
         
         	// otherwise attempt to read-lock
 		// the ramdisk.
         	else {
                 
-                while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail) {
-                    
-                    
-                    int wait = wait_event_interruptible(d->blockq, 1);
-                    if (wait == -ERESTARTSYS)
-                        return -ERESTARTSYS;
-                    
-                    osp_spin_unlock(&d->mutex);//not sure
-                    
-                    schedule();
-                    
-                    
-                    
-                }
-
-                
-                osp_spin_lock(&d->mutex);
+                	while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail) {
+                    		int wait = wait_event_interruptible(d->blockq, 1);
+				osp_spin_unlock(&d->mutex);
+                    		if (wait == -ERESTARTSYS)
+                        		return -ERESTARTSYS;
+                    		schedule();
+				osp_spin_lock(&d->mutex);
+                	}
+                	//osp_spin_lock(&d->mutex);
             		
 			//add current pid to readlock_pids
             		d->readlock_pids[d->num_readlocks++]= current->pid;
-                    filp->f_flags|= F_OSPRD_LOCKED;
-                    
-                                        
+                    	filp->f_flags|= F_OSPRD_LOCKED;
         	}
-        osp_spin_unlock (&d->mutex);
+		d->ticket_tail++;
+        	osp_spin_unlock (&d->mutex);
             
             
             
@@ -337,7 +324,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// BEGINNING OF OUR COMMENTS
 
 		//eprintk("Attempting to acquire\n");
-		r = -ENOTTY;
+		//r = -ENOTTY;
 
 	} else if (cmd == OSPRDIOCTRYACQUIRE) {
 
