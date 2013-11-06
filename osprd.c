@@ -179,8 +179,25 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// EXERCISE: If the user closes a ramdisk file that holds
 		// a lock, release the lock.  Also wake up blocked processes
 		// as appropriate.
-
-		// Your code here.
+		if ( filp->f_flags & F_OSPRD_LOCKED ) {
+			if ( d->num_readlocks > 0 ) {
+				if ( d->num_readlocks == 1) {
+					osp_spin_unlock(&d->mutex);
+				}
+				d->num_readlocks--;
+			}
+			else if ( d->num_writelocks > 0 ) {
+				osp_spin_unlock(&d->mutex);
+				d->num_writelocks--;
+			}			
+			else {	
+				eprintk("Unknown lock type.\n");	
+				return -EINVAL;
+			}
+			filp->f_flags ^= F_OSPRD_LOCKED;
+			wake_up_all(&d->blockq);
+			
+		}
 
 		// This line avoids compiler warnings; you may remove it.
 		(void) filp_writable, (void) d;
@@ -370,15 +387,39 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 	} else if (cmd == OSPRDIOCRELEASE) {
 
 		// EXERCISE: Unlock the ramdisk.
-		//
-		// If the file hasn't locked the ramdisk, return -EINVAL.
-		// Otherwise, clear the lock from filp->f_flags, wake up
-		// the wait queue, perform any additional accounting steps
-		// you need, and return 0.
 
-		// Your code here (instead of the next line).
 		r = -ENOTTY;
 
+		// If the file hasn't locked the ramdisk, return -EINVAL.
+		if ( !(filp->f_flags & F_OSPRD_LOCKED) ) {
+			r = -EINVAL;
+		}
+
+                // Otherwise, clear the lock from filp->f_flags, wake up
+                // the wait queue, perform any additional accounting steps
+                // you need, and return 0.
+		else {
+			if ( d->num_readlocks > 0 ) {
+				if ( d->num_readlocks == 1 ) {
+					osp_spin_unlock(&d->mutex);
+				}
+				d->num_readlocks--;
+			}
+
+			else if ( d->num_writelocks > 0 ) {
+				osp_spin_unlock(&d->mutex);
+				d->num_writelocks--;
+			}
+
+			else {
+				eprintk("Tried to unlock and unknown lock");
+				return -EINVAL;
+			}
+			filp->f_flags ^= F_OSPRD_LOCKED;
+			wake_up_all(&d->blockq);
+			r = 0;
+		}
+		
 	} else
 		r = -ENOTTY; /* unknown command */
 	return r;
