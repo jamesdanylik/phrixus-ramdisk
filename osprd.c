@@ -275,14 +275,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 		// BEGINNING OF OUR COMMENTS
 
-		// If filp_Writable, then we should attempt to get a writelock
-		if (filp_writable) {
-
-		}
-		// Else, we should attempt to get a read lock.
-		else {
-
-		}
 		//eprintk("Attempting to acquire\n");
 		r = -ENOTTY;
 
@@ -297,14 +289,39 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 		// Your code here (instead of the next two lines).
 
+		r = -ENOTTY;
+
+		// If filp_writable, then try to get a writelock;
 		if (filp_writable) {
-
+			// If it's unlocked right now, then lock as normal.
+			if ( !d->mutex.lock ) {
+				osp_spin_lock(&d->mutex);
+				d->writelock_pid = current->pid;
+				d->num_writelocks++;
+				filp->f_flags |= F_OSPRD_LOCKED;
+				r = 0;
+			}
+			// Else, return -EBUSY
+			else {
+				r = -EBUSY;
+			}
 		}
-		else {
 
+		// Else, try to get a readlock
+		else {
+			// IF the lock's available now, then readlock normal
+			if ( !d->mutex.lock ) {
+				osp_spin_lock(&d->mutex);
+				d->readlock_pids[d->num_readlocks++] = current->pid;
+				filp->f_flags |= F_OSPRD_LOCKED;
+				r = 0;
+			}
+			// Else, return -EBUSY
+			else {
+				r = -EBUSY;
+			}
 		}
 		//eprintk("Attempting to try acquire\n");
-		r = -ENOTTY;
 
 	} else if (cmd == OSPRDIOCRELEASE) {
 
