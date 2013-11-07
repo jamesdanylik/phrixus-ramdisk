@@ -191,8 +191,8 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 				d->num_writelocks--;
 			}			
 			else {	
-				//eprintk("Unknown lock type.\n");	
-				//return -EINVAL;
+				eprintk("Unknown lock type.\n");	
+				return -EINVAL;
 			}
 			filp->f_flags ^= F_OSPRD_LOCKED;
 			wake_up_all(&d->blockq);
@@ -252,7 +252,15 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 		if (filp_writable) {
 			// try to lock first
-                       if ( !d->mutex.lock ) {
+			int i = -1;
+
+			// Check for deadlock cases
+			while (i++, i < d->num_readlocks) {
+				if ( current->pid == d->readlock_pids[i] )
+					return -EDEADLK;
+			}
+
+			if ( !d->mutex.lock ) {
                                 osp_spin_lock(&d->mutex);
                                 d->writelock_pid = current->pid;
                                 d->num_writelocks = 1;
@@ -261,7 +269,8 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
                         }        
         		else {
 				//osp_spin_lock(&d->mutex);
-				unsigned local_ticket = d->ticket_head++;
+				unsigned local_ticket = d->ticket_head;
+				d->ticket_head++;
 				//osp_spin_unlock(&d->mutex);
 
 	                	//block when not ready
@@ -278,6 +287,10 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 				wait_event_interruptible( d->blockq, (!d->mutex.lock && d->ticket_tail == local_ticket) );
 				d->ticket_tail++;	
 
+				if ( signal_pending(current) ) {
+					return -ERESTARTSYS;
+				}
+
 				d->writelock_pid = current->pid;
             			d->num_writelocks = 1;
 				d->num_readlocks = 0;
@@ -289,6 +302,8 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         	// otherwise attempt to read-lock
 		// the ramdisk.
         	else {
+			if ( current->pid == d->writelock_pid )
+				return -EDEADLK;
                         if ( !d->mutex.lock ) {
                                 osp_spin_lock(&d->mutex);
                                 d->num_readlocks = 1;
@@ -296,9 +311,13 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
                                 d->readlock_pids[d->num_readlocks] = current->pid;
                                 filp->f_flags |= F_OSPRD_LOCKED;
                         }
+			else if ( d->num_readlocks > 0 ){
+				d->num_readlocks++;
+			}
 			else {
 				//osp_spin_lock(&d->mutex);
-				unsigned local_ticket = d->ticket_head++;
+				unsigned local_ticket = d->ticket_head;
+				d->ticket_head++;
 				//osp_spin_unlock(&d->mutex);
 
                 		//while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail) {
@@ -313,16 +332,21 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
             		
 				//add current pid to readlock_pids
 
-				wait_event_interruptible( d->blockq, (!d->mutex.lock && d->num_readlocks 
+				wait_event_interruptible( d->blockq, ( (!d->mutex.lock || d->num_readlocks) 
 								    && d->ticket_tail == local_ticket) );
 				d->ticket_tail++;
 
+				if ( signal_pending(current) ) {
+					return -ERESTARTSYS;
+				}
+
 				d->readlock_pids[d->num_readlocks++]= current->pid;
 
-				if ( !d->mutex.lock ) {
+				if (!d->mutex.lock ) {
 					osp_spin_lock(&d->mutex);
                     			filp->f_flags|= F_OSPRD_LOCKED;
 				}
+				d->num_readlocks++;
 			}
         	}
 		//if ( !d->mutex.lock )
@@ -405,6 +429,9 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 				d->readlock_pids[d->num_readlocks] = current->pid;
 				filp->f_flags |= F_OSPRD_LOCKED;
 			}
+			else if ( d->num_readlocks > 0) {
+				d->num_readlocks++;
+			}
 			// Else, return -EBUSY
 			else {
 				r = -EBUSY;
@@ -416,7 +443,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 		// EXERCISE: Unlock the ramdisk.
 
-		r = -ENOTTY;
+		r = 0;
 
 		// If the file hasn't locked the ramdisk, return -EINVAL.
 		if ( !(filp->f_flags & F_OSPRD_LOCKED) ) {
@@ -445,7 +472,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 			}
 			filp->f_flags ^= F_OSPRD_LOCKED;
 			wake_up_all(&d->blockq);
-			r = 0;
 		}
 		
 	} else
