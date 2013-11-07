@@ -191,8 +191,8 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 				d->num_writelocks--;
 			}			
 			else {	
-				eprintk("Unknown lock type.\n");	
-				return -EINVAL;
+				//eprintk("Unknown lock type.\n");	
+				//return -EINVAL;
 			}
 			filp->f_flags ^= F_OSPRD_LOCKED;
 			wake_up_all(&d->blockq);
@@ -234,8 +234,8 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
         
         	//You should set a local
 		// variable to 'd->ticket_head' and increment 'd->ticket_head'.
-        	unsigned local_ticket = d->ticket_head;
-        	d->ticket_head++;
+        	//unsigned local_ticket = d->ticket_head;
+        	//d->ticket_head++;
         
 
 		// EXERCISE: Lock the ramdisk.
@@ -251,42 +251,82 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		r = 0; //unless something goes wrong...
 
 		if (filp_writable) {
-                
-                //block when not ready
-                	while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail || d-> num_readlocks !=0 ) {    
-                    		int wait = wait_event_interruptible(d->blockq, 1);
-				osp_spin_unlock(&d->mutex);// not sure, but there must be a unlock before scheule 
-                    		if (wait == -ERESTARTSYS)
-                        		return -ERESTARTSYS;
-                    		schedule();
-				osp_spin_lock(&d->mutex); // and the we must relock to loop?
-                	}
-            		//osp_spin_lock(&d->mutex);// not sure
-            		d->writelock_pid = current->pid;
-            		d->num_writelocks++;
-                	filp->f_flags|= F_OSPRD_LOCKED;
+			// try to lock first
+                       if ( !d->mutex.lock ) {
+                                osp_spin_lock(&d->mutex);
+                                d->writelock_pid = current->pid;
+                                d->num_writelocks = 1;
+                                d->num_readlocks = 0;
+                                filp->f_flags |= F_OSPRD_LOCKED;
+                        }        
+        		else {
+				//osp_spin_lock(&d->mutex);
+				unsigned local_ticket = d->ticket_head++;
+				//osp_spin_unlock(&d->mutex);
+
+	                	//block when not ready
+                		//while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail || d-> num_readlocks !=0 ) {    
+                    		//	int wait = wait_event_interruptible(d->blockq, 1);
+				//	osp_spin_unlock(&d->mutex);// not sure, but there must be a unlock before scheule 
+                    		//	if (wait == -ERESTARTSYS)
+                        	//		return -ERESTARTSYS;
+                    		//	schedule();
+				//	osp_spin_lock(&d->mutex); // and the we must relock to loop?
+                		//}
+            			//osp_spin_lock(&d->mutex);// not sure
+
+				wait_event_interruptible( d->blockq, (!d->mutex.lock && d->ticket_tail == local_ticket) );
+				d->ticket_tail++;	
+
+				d->writelock_pid = current->pid;
+            			d->num_writelocks = 1;
+				d->num_readlocks = 0;
+				osp_spin_lock(&d->mutex);
+                		filp->f_flags|= F_OSPRD_LOCKED;
+			}
         	}
         
         	// otherwise attempt to read-lock
 		// the ramdisk.
         	else {
-                
-                	while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail) {
-                    		int wait = wait_event_interruptible(d->blockq, 1);
-				osp_spin_unlock(&d->mutex);
-                    		if (wait == -ERESTARTSYS)
-                        		return -ERESTARTSYS;
-                    		schedule();
-				osp_spin_lock(&d->mutex);
-                	}
-                	//osp_spin_lock(&d->mutex);
+                        if ( !d->mutex.lock ) {
+                                osp_spin_lock(&d->mutex);
+                                d->num_readlocks = 1;
+                                d->num_writelocks = 0;
+                                d->readlock_pids[d->num_readlocks] = current->pid;
+                                filp->f_flags |= F_OSPRD_LOCKED;
+                        }
+			else {
+				//osp_spin_lock(&d->mutex);
+				unsigned local_ticket = d->ticket_head++;
+				//osp_spin_unlock(&d->mutex);
+
+                		//while (d->num_writelocks != 0 || local_ticket != d-> ticket_tail) {
+                    		//	int wait = wait_event_interruptible(d->blockq, 1);
+				//	osp_spin_unlock(&d->mutex);
+                    		//	if (wait == -ERESTARTSYS)
+                        	//		return -ERESTARTSYS;
+                    		//	schedule();
+				//	osp_spin_lock(&d->mutex);
+                		//}
+                		//osp_spin_lock(&d->mutex);
             		
-			//add current pid to readlock_pids
-            		d->readlock_pids[d->num_readlocks++]= current->pid;
-                    	filp->f_flags|= F_OSPRD_LOCKED;
+				//add current pid to readlock_pids
+
+				wait_event_interruptible( d->blockq, (!d->mutex.lock && d->num_readlocks 
+								    && d->ticket_tail == local_ticket) );
+				d->ticket_tail++;
+
+				d->readlock_pids[d->num_readlocks++]= current->pid;
+
+				if ( !d->mutex.lock ) {
+					osp_spin_lock(&d->mutex);
+                    			filp->f_flags|= F_OSPRD_LOCKED;
+				}
+			}
         	}
-		d->ticket_tail++;
-        	osp_spin_unlock (&d->mutex);
+		//if ( !d->mutex.lock )
+        	//	osp_spin_lock (&d->mutex);
             
             
             
@@ -337,7 +377,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 		// Your code here (instead of the next two lines).
 
-		r = -ENOTTY;
+		r = 0;
 
 		// If filp_writable, then try to get a writelock;
 		if (filp_writable) {
@@ -345,9 +385,9 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 			if ( !d->mutex.lock ) {
 				osp_spin_lock(&d->mutex);
 				d->writelock_pid = current->pid;
-				d->num_writelocks++;
+				d->num_writelocks = 1;
+				d->num_readlocks = 0;
 				filp->f_flags |= F_OSPRD_LOCKED;
-				r = 0;
 			}
 			// Else, return -EBUSY
 			else {
@@ -360,9 +400,10 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 			// IF the lock's available now, then readlock normal
 			if ( !d->mutex.lock ) {
 				osp_spin_lock(&d->mutex);
-				d->readlock_pids[d->num_readlocks++] = current->pid;
+				d->num_readlocks = 1;
+				d->num_writelocks = 0;
+				d->readlock_pids[d->num_readlocks] = current->pid;
 				filp->f_flags |= F_OSPRD_LOCKED;
-				r = 0;
 			}
 			// Else, return -EBUSY
 			else {
@@ -395,7 +436,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 
 			else if ( d->num_writelocks > 0 ) {
 				osp_spin_unlock(&d->mutex);
-				d->num_writelocks--;
+				d->num_writelocks = 0;
 			}
 
 			else {
