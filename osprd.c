@@ -37,7 +37,7 @@
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("CS 111 RAM Disk");
 // EXERCISE: Pass your names into the kernel as the module's authors.
-MODULE_AUTHOR("Skeletor");
+MODULE_AUTHOR("James Danylik & Zhaoying Yao");
 
 #define OSPRD_MAJOR	222
 
@@ -455,9 +455,30 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
                 // you need, and return 0.
 		else {
 			if ( d->num_readlocks > 0 ) {
+				//if ( d->num_readlocks == 1 ) {
+				//	osp_spin_unlock(&d->mutex);
+				//}
+				//d->num_readlocks--;
+
+				int i = -1;
+				while ( i++, d->readlock_pids[i] != current->pid && i < d->num_readlocks ) {
+				}
+
+				if ( i >= d->num_readlocks ) {
+						
+				}
+
+				if ( i < (d->num_readlocks - 1) ) {
+					while ( i < d->num_readlocks ) {
+						d->readlock_pids[i] = d->readlock_pids[i+1];
+						i++;
+					}
+				}
+				d->readlock_pids[i] = -1;
+				
 				if ( d->num_readlocks == 1 ) {
 					osp_spin_unlock(&d->mutex);
-				}
+				}				
 				d->num_readlocks--;
 			}
 
